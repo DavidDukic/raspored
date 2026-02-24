@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raspored PWA</title>
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+body{margin:0;font-family:system-ui;background:#f6f7fb}
+.container{max-width:1300px;margin:auto;padding:16px}
+h1{text-align:center}
+.wrapper{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:white}
+th,td{border:1px solid #e5e7eb;min-width:140px;height:90px;vertical-align:top;position:relative}
+th{background:#4f46e5;color:white}
+.time{background:#eef2ff;font-weight:600;text-align:center}
+
+.event{margin:2px;padding:4px 6px;border-radius:8px;color:white;font-size:12px;position:relative;cursor:grab}
+.predavanje{background:#4f46e5}
+.av{background:#059669}
+.lab{background:#ea580c}
+
+.close{position:absolute;right:4px;top:2px;font-size:11px;cursor:pointer}
+
+.tooltip{position:fixed;background:#111827;color:white;padding:10px;border-radius:10px;font-size:13px;pointer-events:none;opacity:0;transition:.15s;z-index:999;max-width:220px}
+
+.controls{margin:10px 0;padding:10px;background:white;border-radius:12px;display:flex;gap:6px;flex-wrap:wrap}
+button{padding:8px 12px;border:none;border-radius:8px;background:#4f46e5;color:white;cursor:pointer}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center}
+.modalContent{background:white;padding:16px;border-radius:12px;width:320px;display:flex;flex-direction:column;gap:8px}
+.modalContent input,.modalContent select{padding:8px;border-radius:8px;border:1px solid #ddd}
+
+.legend{display:flex;gap:10px;margin-top:10px}
+.badge{padding:6px 10px;border-radius:8px;color:white}
+td{
+ position:relative;
+ overflow:visible;
+}
+td{
+ height:65px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>📅 Raspored</h1>
+
+<div class="controls">
+<button onclick="openModal()">➕ Dodaj</button>
+<button onclick="undo()">↩ Undo</button>
+</div>
+
+<div class="wrapper"><table id="table"></table></div>
+
+<div class="legend">
+<div class="badge predavanje">Predavanje</div>
+<div class="badge av">Auditorne</div>
+<div class="badge lab">Laboratorij</div>
+</div>
+
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+
+<div class="modal" id="modal">
+<div class="modalContent">
+<input id="mSubject" placeholder="Predmet">
+<select id="mType">
+<option value="predavanje">Predavanje</option>
+<option value="av">AV</option>
+<option value="lab">LAB</option>
+</select>
+<select id="mDay"></select>
+<input id="mStart" placeholder="Start HH:MM">
+<input id="mEnd" placeholder="End HH:MM">
+<input id="mRoom" placeholder="Učionica">
+<button onclick="addEvent()">Spremi</button>
+<button onclick="closeModal()">Zatvori</button>
+</div>
+</div>
+
+<script>
+const CELL_HEIGHT = 65;
+const days=["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota"];
+const slots=[
+{label:"9:00-9:45",start:540,end:585},{label:"9:50-10:35",start:590,end:635},{label:"10:45-11:30",start:645,end:690},{label:"11:35-12:20",start:695,end:740},{label:"12:30-13:15",start:750,end:795},{label:"13:20-14:05",start:800,end:845},{label:"14:15-15:00",start:855,end:900},{label:"15:05-15:50",start:905,end:950},{label:"16:00-16:45",start:960,end:1005},{label:"16:50-17:35",start:1010,end:1055},{label:"17:45-18:30",start:1065,end:1110},{label:"18:35-19:20",start:1115,end:1160},{label:"19:30-20:15",start:1170,end:1215},{label:"20:15-20:45",start:1215,end:1245}
+];
+
+let state=JSON.parse(localStorage.getItem("sched")||"[]");
+let history=[];
+
+const save=()=>localStorage.setItem("sched",JSON.stringify(state));
+const parse=t=>{let[h,m]=t.split(":");return +h*60+ +m};
+const overlaps=(e,s)=>e.startMin<s.end && e.endMin>s.start;
+
+/* BUILD */
+function build(){
+ const t=document.getElementById("table");
+ t.innerHTML="<tr><th>Vrijeme</th>"+days.map(d=>`<th>${d}</th>`).join("")+"</tr>";
+
+ slots.forEach(s=>{
+  let r=`<tr><td class=time>${s.label}</td>`;
+  days.forEach(d=>r+=`<td data-day="${d}" data-slot="${s.label}"></td>`);
+  t.innerHTML+=r+"</tr>";
+ });
+
+ enableDropZones();
+ render();
+}
+
+/* DRAG DROP GLOBAL */
+function enableDropZones(){
+ document.querySelectorAll("td[data-day]").forEach(td=>{
+  td.ondragover=e=>e.preventDefault();
+  td.ondrop=e=>{
+    const i=e.dataTransfer.getData("i");
+    const day=td.dataset.day;
+    const slot=slots.find(s=>s.label===td.dataset.slot);
+    const dur=state[i].endMin-state[i].startMin;
+    state[i].day=day;
+    state[i].startMin=slot.start;
+    state[i].endMin=slot.start+dur;
+    state[i].start=minutesToTime(state[i].startMin);
+    state[i].end=minutesToTime(state[i].endMin);
+    save();build();
+  }
+ });
+}
+
+const minutesToTime=m=>{
+ const h=Math.floor(m/60);
+ const mm=m%60;
+ return `${h}:${mm.toString().padStart(2,"0")}`;
+}
+
+/* RENDER */
+/* RENDER */
+function render(){
+ const tooltip=document.getElementById("tooltip");
+
+ state.forEach((e,i)=>{
+
+  // 🔹 koji slotovi su pokriveni
+  const covered = slots.filter(slot => e.day && overlaps(e,slot));
+  if(!covered.length) return;
+
+  // 🔹 prvi slot (gdje render ide)
+  const first = covered[0];
+  const span = covered.length;
+
+  const cell = [...document.querySelectorAll("td[data-day]")]
+    .find(td => td.dataset.day===e.day && td.dataset.slot===first.label);
+
+  if(!cell) return;
+
+  // 🔹 kreiraj event blok
+  const div=document.createElement("div");
+  div.className="event "+e.type;
+  div.draggable=true;
+
+  // ⭐ OVO JE FIX ZA DUPLIKATE
+  const CELL_HEIGHT = 90;
+  div.style.height = (span * CELL_HEIGHT - 6) + "px";
+
+  /* ===== HOVER ===== */
+ div.onmouseenter=()=>{
+  tooltip.style.opacity=1;
+  tooltip.innerHTML=`<b>${e.subject}</b><br>${e.type}<br>Uč: ${e.room}<br>${e.start}-${e.end}`;
+
+  const rect = div.getBoundingClientRect();
+
+  tooltip.style.left = (rect.right + 10) + "px";
+  tooltip.style.top = rect.top + "px";
+}
+  div.onmouseleave=()=>tooltip.style.opacity=0;
+
+  /* ===== MOBILE ===== */
+  div.ontouchstart=()=>alert(`${e.subject}\n${e.type}\n${e.room}\n${e.start}-${e.end}`);
+
+  /* ===== DRAG ===== */
+  div.ondragstart=ev=>ev.dataTransfer.setData("i",i);
+
+  /* ===== UI ===== */
+  div.innerHTML=`<div class="close" onclick="removeEvent(${i})">✕</div>${e.subject}`;
+  div.ondblclick=()=>editEvent(i);
+
+  cell.appendChild(div);
+
+ });
+}
+
+/* CRUD */
+function removeEvent(i){history.push(JSON.stringify(state));state.splice(i,1);save();build();}
+function undo(){if(history.length){state=JSON.parse(history.pop());save();build();}}
+
+function openModal(){document.getElementById("modal").style.display="flex"}
+function closeModal(){document.getElementById("modal").style.display="none"}
+
+function addEvent(){
+ history.push(JSON.stringify(state));
+ const subject=mSubject.value;
+ const type=mType.value;
+ const day=mDay.value;
+ const start=mStart.value;
+ const end=mEnd.value;
+ const room=mRoom.value;
+
+ state.push({subject,type,day,start,end,room,startMin:parse(start),endMin:parse(end)});
+ save();closeModal();build();
+}
+
+function editEvent(i){
+ openModal();
+ const e=state[i];
+ mSubject.value=e.subject;
+ mType.value=e.type;
+ mDay.value=e.day;
+ mStart.value=e.start;
+ mEnd.value=e.end;
+ mRoom.value=e.room;
+ state.splice(i,1);
+}
+
+/* INIT */
+days.forEach(d=>mDay.add(new Option(d,d)));
+
+if(!state.length){
+ const add=(s,t,d,st,en,r)=>state.push({subject:s,type:t,day:d,start:st,end:en,room:r,startMin:parse(st),endMin:parse(en)});
+ add("Računalne mreže","predavanje","Utorak","13:20","14:05","107");
+ save();
+}
+
+build();
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+
+state.filter(e=>e.subject==="Računalne mreže").forEach(e=>{
+ if(e.type==="lab"){
+  e.start="13:00";
+  e.startMin=parse("13:00");
+ }
+});
+save();build();
+
+</script>
+</body>
+</html>
