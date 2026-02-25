@@ -165,6 +165,10 @@ button{
 
 <script type="module">
 
+const parse = t => { let [h,m]=t.split(":"); return +h*60 + +m };
+
+const overlaps = (e,s) => e.startMin < s.end && e.endMin > s.start;
+
 /* FIREBASE */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -208,9 +212,6 @@ const mStart = document.getElementById("mStart");
 const mEnd = document.getElementById("mEnd");
 const mRoom = document.getElementById("mRoom");
 let scheduled=new Set();
-
-const parse=t=>{let[h,m]=t.split(":");return +h*60+ +m};
-const overlaps=(e,s)=>e.startMin<s.end && e.endMin>s.start;
 
 window.enableNotifications = async () => {
  if(Notification.permission === "default"){
