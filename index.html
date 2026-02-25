@@ -119,6 +119,19 @@ button{
  border-radius:8px;
  border:1px solid #ddd
 }
+.tooltip{
+ position:fixed;
+ background:#111827;
+ color:white;
+ padding:10px;
+ border-radius:10px;
+ font-size:13px;
+ pointer-events:none;
+ opacity:0;
+ transition:.15s;
+ z-index:9999;
+ max-width:220px;
+}
 </style>
 </head>
 
@@ -143,8 +156,9 @@ button{
 <div class="badge av">Auditorne</div>
 <div class="badge lab">Laboratorij</div>
 </div>
-
 </div>
+
+<div id="tooltip" class="tooltip"></div>
 
 <div class="modal" id="modal">
 <div class="modalContent">
@@ -272,22 +286,46 @@ function build(){
  });
 
  render();
+ enableDropZones();   
  updateNextClass();
 }
 
 /* RENDER */
 function render(){
+
+ const tooltip=document.getElementById("tooltip");
+
  state.forEach((e,i)=>{
+
   const covered=slots.filter(slot=>e.day&&overlaps(e,slot));
   if(!covered.length)return;
 
   const first=covered[0];
+
   const cell=[...document.querySelectorAll("td[data-day]")]
    .find(td=>td.dataset.day===e.day&&td.dataset.slot===first.label);
   if(!cell)return;
 
   const div=document.createElement("div");
   div.className="event "+e.type;
+
+  div.style.position="absolute";
+  div.style.left="2px";
+  div.style.right="2px";
+
+  if(tooltip){
+   div.onmouseenter=()=>{
+    tooltip.style.opacity=1;
+    tooltip.innerHTML=`<b>${e.subject}</b><br>${e.type}<br>${e.room}<br>${e.start}-${e.end}`;
+    const rect=div.getBoundingClientRect();
+    tooltip.style.left=(rect.right+10)+"px";
+    tooltip.style.top=rect.top+"px";
+   };
+   div.onmouseleave=()=>tooltip.style.opacity=0;
+  }
+
+  div.draggable=true;
+  div.ondragstart=ev=>ev.dataTransfer.setData("i",i);
 
   const duration=e.endMin-e.startMin;
   const slotMinutes=slots[0].end-slots[0].start;
@@ -298,9 +336,14 @@ function render(){
   div.style.top=offset+"px";
 
   div.innerHTML=`<div class="close">✕</div>${e.subject}`;
-  div.querySelector(".close").onclick=()=>{state.splice(i,1);save();};
+  div.querySelector(".close").onclick=()=>{
+    history.push(JSON.stringify(state));
+    state.splice(i,1);
+    save();
+  };
 
   cell.appendChild(div);
+
  });
 }
 
@@ -335,11 +378,11 @@ window.addEvent=()=>{
 
 window.bulkImport = () => {
 
- const newEvents = [
+ const importData = [
 
  {subject:"Matematička analiza",type:"predavanje",day:"Ponedjeljak",start:"18:35",end:"20:45",room:"113"},
  {subject:"Matematička analiza",type:"av",day:"Srijeda",start:"16:00",end:"16:45",room:"101"},
- {subject:"Fizika u računarstvu",type:"lab",day:"Ponedjeljak",start:"9:00",end:"10:30",room:"004 I"},
+ {subject:"Fizika u računarstvu",type:"lab",day:"Utorak",start:"9:00",end:"10:30",room:"004 I"},
  {subject:"Fizika u računarstvu",type:"predavanje",day:"Utorak",start:"9:00",end:"11:30",room:"107"},
  {subject:"PMA",type:"predavanje",day:"Petak",start:"10:45",end:"13:15",room:"104"},
  {subject:"PMA",type:"lab",day:"Četvrtak",start:"17:45",end:"18:30",room:"109"},
@@ -349,36 +392,55 @@ window.bulkImport = () => {
  {subject:"Linux",type:"lab",day:"Srijeda",start:"17:45",end:"18:30",room:"210"},
  {subject:"Računalne mreže",type:"lab",day:"Četvrtak",start:"13:00",end:"14:30",room:"202"}
 
- ].map(e=>({
-  ...e,
-  startMin:parse(e.start),
-  endMin:parse(e.end)
- }));
+ ].map(e=>({...e,startMin:parse(e.start),endMin:parse(e.end)}));
 
+ // ⭐ MERGE
+ importData.forEach(newEvent=>{
+   const exists = state.some(e =>
+     e.subject===newEvent.subject &&
+     e.day===newEvent.day &&
+     e.startMin===newEvent.startMin
+   );
 
- // ⭐ MERGE bez duplikata
- newEvents.forEach(ne => {
-
-  const exists = state.some(se =>
-    se.subject===ne.subject &&
-    se.day===ne.day &&
-    se.start===ne.start
-  );
-
-  if(!exists){
-   state.push(ne);
-  }
-
+   if(!exists) state.push(newEvent);
  });
 
  save();
 };
+
 
 window.openModal=()=>modal.style.display="flex";
 window.closeModal=()=>modal.style.display="none";
 window.undo=()=>{if(history.length){state=JSON.parse(history.pop());save();}};
 
 days.forEach(d=>mDay.add(new Option(d,d)));
+
+function enableDropZones(){
+ document.querySelectorAll("td[data-day]").forEach(td=>{
+  td.ondragover=e=>e.preventDefault();
+  td.ondrop=e=>{
+    const i=e.dataTransfer.getData("i");
+    const day=td.dataset.day;
+    const slot=slots.find(s=>s.label===td.dataset.slot);
+    const dur=state[i].endMin-state[i].startMin;
+
+    history.push(JSON.stringify(state));
+
+    state[i].day=day;
+    state[i].startMin=slot.start;
+    state[i].endMin=slot.start+dur;
+    state[i].start=minutesToTime(state[i].startMin);
+    state[i].end=minutesToTime(state[i].endMin);
+
+    save();
+  };
+ });
+}
+const minutesToTime=m=>{
+ const h=Math.floor(m/60);
+ const mm=m%60;
+ return `${h}:${mm.toString().padStart(2,"0")}`;
+};
 
 build();
 </script>
