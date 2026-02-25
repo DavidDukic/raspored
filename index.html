@@ -200,6 +200,13 @@ const cached=localStorage.getItem("offlineSched");
 if(cached){state=JSON.parse(cached);build();}
 
 let history=[];
+const modal = document.getElementById("modal");
+const mSubject = document.getElementById("mSubject");
+const mType = document.getElementById("mType");
+const mDay = document.getElementById("mDay");
+const mStart = document.getElementById("mStart");
+const mEnd = document.getElementById("mEnd");
+const mRoom = document.getElementById("mRoom");
 let scheduled=new Set();
 
 const parse=t=>{let[h,m]=t.split(":");return +h*60+ +m};
@@ -301,7 +308,8 @@ const save=()=>setDoc(scheduleRef,{events:state});
 /* NEXT CLASS */
 function updateNextClass(){
  const nowMin=new Date().getHours()*60+new Date().getMinutes();
- const today=days[new Date().getDay()-1];
+ const todayIndex = new Date().getDay()-1;
+ const today = todayIndex >= 0 ? days[todayIndex] : null;
  const next=state.filter(e=>e.day===today&&e.startMin>nowMin).sort((a,b)=>a.startMin-b.startMin)[0];
  document.getElementById("nextClass").innerText=next?"➡️ Sljedeće: "+next.subject+" u "+next.start:"";
 }
