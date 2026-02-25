@@ -166,7 +166,6 @@ button{
 <script type="module">
 
 const parse = t => { let [h,m]=t.split(":"); return +h*60 + +m };
-
 const overlaps = (e,s) => e.startMin < s.end && e.endMin > s.start;
 
 /* FIREBASE */
@@ -201,7 +200,9 @@ const slots=[
 
 let state=[];
 const cached=localStorage.getItem("offlineSched");
-if(cached){state=JSON.parse(cached);build();}
+if(cached){
+ state = JSON.parse(cached);
+}
 
 let history=[];
 const modal = document.getElementById("modal");
@@ -337,6 +338,7 @@ window.undo=()=>{if(history.length){state=JSON.parse(history.pop());save();}};
 
 days.forEach(d=>mDay.add(new Option(d,d)));
 
+build();
 </script>
 </body>
 </html>
