@@ -133,6 +133,7 @@ button{
 <button onclick="openModal()">➕ Dodaj</button>
 <button onclick="undo()">↩ Undo</button>
 <button onclick="bulkImport()">⚡ Import raspored</button>
+<button onclick="enableNotifications()">🔔 Notifikacije</button>
 </div>
 
 <div class="wrapper"><table id="table"></table></div>
@@ -204,13 +205,12 @@ let scheduled=new Set();
 const parse=t=>{let[h,m]=t.split(":");return +h*60+ +m};
 const overlaps=(e,s)=>e.startMin<s.end && e.endMin>s.start;
 
-/* NOTIFICATIONS */
-async function initNotifications(){
- if("Notification" in window && Notification.permission!=="granted"){
+window.enableNotifications = async () => {
+ if(Notification.permission === "default"){
   await Notification.requestPermission();
  }
-}
-initNotifications();
+ alert("Notifikacije uključene 👍");
+};
 
 function scheduleNotifications(){
  const now=new Date();
