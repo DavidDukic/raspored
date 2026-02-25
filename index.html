@@ -305,7 +305,15 @@ function render(){
 }
 
 /* SAVE */
-const save=()=>setDoc(scheduleRef,{events:state});
+const save = () => {
+
+ if(!state.length){
+   alert("⚠️ Prazan raspored — save blokiran");
+   return;
+ }
+
+ setDoc(scheduleRef,{events:state});
+}
 
 /* NEXT CLASS */
 function updateNextClass(){
@@ -325,10 +333,44 @@ window.addEvent=()=>{
  save();closeModal();
 };
 
-window.bulkImport=()=>{
- state=[
- {subject:"Fizika u računarstvu",type:"lab",day:"Ponedjeljak",start:"9:00",end:"10:30",room:"004 I"}
- ].map(e=>({...e,startMin:parse(e.start),endMin:parse(e.end)}));
+window.bulkImport = () => {
+
+ const newEvents = [
+
+ {subject:"Matematička analiza",type:"predavanje",day:"Ponedjeljak",start:"18:35",end:"20:45",room:"113"},
+ {subject:"Matematička analiza",type:"av",day:"Srijeda",start:"16:00",end:"16:45",room:"101"},
+ {subject:"Fizika u računarstvu",type:"lab",day:"Ponedjeljak",start:"9:00",end:"10:30",room:"004 I"},
+ {subject:"Fizika u računarstvu",type:"predavanje",day:"Utorak",start:"9:00",end:"11:30",room:"107"},
+ {subject:"PMA",type:"predavanje",day:"Petak",start:"10:45",end:"13:15",room:"104"},
+ {subject:"PMA",type:"lab",day:"Četvrtak",start:"17:45",end:"18:30",room:"109"},
+ {subject:"Tehnički engleski",type:"av",day:"Srijeda",start:"10:45",end:"12:20",room:"106"},
+ {subject:"Tehnički engleski",type:"av",day:"Četvrtak",start:"9:50",end:"11:30",room:"106"},
+ {subject:"Računalne mreže",type:"predavanje",day:"Utorak",start:"13:20",end:"14:05",room:"107"},
+ {subject:"Linux",type:"lab",day:"Srijeda",start:"17:45",end:"18:30",room:"210"},
+ {subject:"Računalne mreže",type:"lab",day:"Četvrtak",start:"13:00",end:"14:30",room:"202"}
+
+ ].map(e=>({
+  ...e,
+  startMin:parse(e.start),
+  endMin:parse(e.end)
+ }));
+
+
+ // ⭐ MERGE bez duplikata
+ newEvents.forEach(ne => {
+
+  const exists = state.some(se =>
+    se.subject===ne.subject &&
+    se.day===ne.day &&
+    se.start===ne.start
+  );
+
+  if(!exists){
+   state.push(ne);
+  }
+
+ });
+
  save();
 };
 
