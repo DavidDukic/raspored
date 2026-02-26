@@ -2,7 +2,7 @@
 <html lang="hr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>Raspored PWA</title>
 
 <link rel="manifest" href="manifest.json">
@@ -12,7 +12,6 @@ body{
  margin:0;
  font-family:system-ui;
  background:#f6f7fb;
- -webkit-tap-highlight-color:transparent;
 }
 
 .container{max-width:1300px;margin:auto;padding:16px}
@@ -27,20 +26,11 @@ th,td{
  height:65px;
  vertical-align:top;
  position:relative;
+ overflow:visible;
 }
 
-th{
- background:#4f46e5;
- color:white;
- font-size:17px;
-}
-
-.time{
- background:#eef2ff;
- font-weight:600;
- text-align:center;
- font-size:15px;
-}
+th{background:#4f46e5;color:white;font-size:17px}
+.time{background:#eef2ff;font-weight:600;text-align:center;font-size:15px}
 
 .event{
  font-size:15px;
@@ -51,27 +41,19 @@ th{
  text-align:center;
  border-radius:14px;
  box-shadow:0 6px 16px rgba(0,0,0,.12);
- transition:.15s;
  color:white;
  position:absolute;
  left:2px;
  right:2px;
  cursor:grab;
+ z-index:10;
 }
-
-.event:active{transform:scale(.97)}
 
 .predavanje{background:#4f46e5}
 .av{background:#059669}
 .lab{background:#ea580c}
 
-.close{
- position:absolute;
- right:4px;
- top:2px;
- font-size:11px;
- cursor:pointer;
-}
+.close{position:absolute;right:4px;top:2px;font-size:11px;cursor:pointer}
 
 .controls{
  margin:10px 0;
@@ -92,8 +74,18 @@ button{
  cursor:pointer
 }
 
-.legend{display:flex;gap:10px;margin-top:10px}
-.badge{padding:6px 10px;border-radius:8px;color:white}
+.tooltip{
+ position:fixed;
+ background:#111827;
+ color:white;
+ padding:10px;
+ border-radius:10px;
+ font-size:13px;
+ pointer-events:none;
+ opacity:0;
+ transition:.15s;
+ z-index:9999;
+}
 
 .modal{
  position:fixed;
@@ -119,19 +111,6 @@ button{
  border-radius:8px;
  border:1px solid #ddd
 }
-.tooltip{
- position:fixed;
- background:#111827;
- color:white;
- padding:10px;
- border-radius:10px;
- font-size:13px;
- pointer-events:none;
- opacity:0;
- transition:.15s;
- z-index:9999;
- max-width:220px;
-}
 </style>
 </head>
 
@@ -140,22 +119,13 @@ button{
 <div class="container">
 <h1>📅 Raspored</h1>
 
-<div id="nextClass" style="margin-bottom:10px;font-weight:600;font-size:18px;color:#4f46e5"></div>
-
 <div class="controls">
 <button onclick="openModal()">➕ Dodaj</button>
 <button onclick="undo()">↩ Undo</button>
 <button onclick="bulkImport()">⚡ Import raspored</button>
-<button onclick="enableNotifications()">🔔 Notifikacije</button>
 </div>
 
 <div class="wrapper"><table id="table"></table></div>
-
-<div class="legend">
-<div class="badge predavanje">Predavanje</div>
-<div class="badge av">Auditorne</div>
-<div class="badge lab">Laboratorij</div>
-</div>
 </div>
 
 <div id="tooltip" class="tooltip"></div>
@@ -179,14 +149,13 @@ button{
 
 <script type="module">
 
-const parse = t => { let [h,m]=t.split(":"); return +h*60 + +m };
-const overlaps = (e,s) => e.startMin < s.end && e.endMin > s.start;
+const parse=t=>{let[h,m]=t.split(":");return +h*60+ +m};
+const overlaps=(e,s)=>e.startMin<s.end&&e.endMin>s.start;
 
-/* FIREBASE */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
+const firebaseConfig={
  apiKey:"AIzaSyDsyWQzqe1O0osgScAzYl780hADLuZ0pn0",
  authDomain:"raspored-d6237.firebaseapp.com",
  projectId:"raspored-d6237",
@@ -195,12 +164,11 @@ const firebaseConfig = {
  appId:"1:807623139498:web:d174a1032f3a4df57ab0d3"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const scheduleRef = doc(db,"schedule","main");
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
+const scheduleRef=doc(db,"schedule","main");
 
-/* APP */
-const CELL_HEIGHT = 65;
+const CELL_HEIGHT=65;
 const days=["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota"];
 const slots=[
 {label:"9:00-9:45",start:540,end:585},{label:"9:50-10:35",start:590,end:635},
@@ -213,68 +181,25 @@ const slots=[
 ];
 
 let state=[];
-const cached=localStorage.getItem("offlineSched");
-if(cached){
- state = JSON.parse(cached);
-}
-
 let history=[];
-const modal = document.getElementById("modal");
-const mSubject = document.getElementById("mSubject");
-const mType = document.getElementById("mType");
-const mDay = document.getElementById("mDay");
-const mStart = document.getElementById("mStart");
-const mEnd = document.getElementById("mEnd");
-const mRoom = document.getElementById("mRoom");
-let scheduled=new Set();
 
-window.enableNotifications = async () => {
- if(Notification.permission === "default"){
-  await Notification.requestPermission();
- }
- alert("Notifikacije uključene 👍");
-};
+const modal=document.getElementById("modal");
+const mSubject=document.getElementById("mSubject");
+const mType=document.getElementById("mType");
+const mDay=document.getElementById("mDay");
+const mStart=document.getElementById("mStart");
+const mEnd=document.getElementById("mEnd");
+const mRoom=document.getElementById("mRoom");
 
-function scheduleNotifications(){
- const now=new Date();
+const save=()=>setDoc(scheduleRef,{events:state});
 
- state.forEach(e=>{
-  const dayIndex=days.indexOf(e.day);
-  if(dayIndex===-1)return;
-
-  const target=new Date();
-  const diff=(dayIndex-target.getDay()+7)%7;
-  target.setDate(target.getDate()+diff);
-  target.setHours(Math.floor(e.startMin/60));
-  target.setMinutes(e.startMin%60);
-
-  const notifyTime=new Date(target.getTime()-60*60*1000);
-  const key=e.subject+notifyTime.getTime();
-  if(scheduled.has(key))return;
-
-  const delay=notifyTime-now;
-  if(delay>0){
-   scheduled.add(key);
-   setTimeout(()=>{
-    if(Notification.permission==="granted"){
-     new Notification("📚 Predavanje uskoro",{body:`${e.subject} u ${e.start}`,icon:"ikona.png"});
-    }
-   },delay);
-  }
- });
-}
-
-/* FIRESTORE LISTENER */
 onSnapshot(scheduleRef,snap=>{
  if(snap.exists()){
   state=snap.data().events||[];
-  localStorage.setItem("offlineSched",JSON.stringify(state));
   build();
-  scheduleNotifications();
  }
 });
 
-/* BUILD */
 function build(){
  const t=document.getElementById("table");
  t.innerHTML="<tr><th>Vrijeme</th>"+days.map(d=>`<th>${d}</th>`).join("")+"</tr>";
@@ -285,12 +210,10 @@ function build(){
   t.innerHTML+=r+"</tr>";
  });
 
+ enableDropZones();
  render();
- enableDropZones();   
- updateNextClass();
 }
 
-/* RENDER */
 function render(){
 
  const tooltip=document.getElementById("tooltip");
@@ -301,74 +224,68 @@ function render(){
   if(!covered.length)return;
 
   const first=covered[0];
-
   const cell=[...document.querySelectorAll("td[data-day]")]
    .find(td=>td.dataset.day===e.day&&td.dataset.slot===first.label);
   if(!cell)return;
 
   const div=document.createElement("div");
   div.className="event "+e.type;
-
-  div.style.position="absolute";
-  div.style.left="2px";
-  div.style.right="2px";
-
-  if(tooltip){
-   div.onmouseenter=()=>{
-    tooltip.style.opacity=1;
-    tooltip.innerHTML=`<b>${e.subject}</b><br>${e.type}<br>${e.room}<br>${e.start}-${e.end}`;
-    const rect=div.getBoundingClientRect();
-    tooltip.style.left=(rect.right+10)+"px";
-    tooltip.style.top=rect.top+"px";
-   };
-   div.onmouseleave=()=>tooltip.style.opacity=0;
-  }
-
   div.draggable=true;
-  div.ondragstart=ev=>ev.dataTransfer.setData("i",i);
 
   const duration=e.endMin-e.startMin;
-  const slotMinutes=slots[0].end-slots[0].start;
-  const pxPerMin=CELL_HEIGHT/slotMinutes;
-
+  const pxPerMin=CELL_HEIGHT/(slots[0].end-slots[0].start);
   div.style.height=(duration*pxPerMin-6)+"px";
-  const offset=(e.startMin-first.start)*pxPerMin;
-  div.style.top=offset+"px";
+  div.style.top=((e.startMin-first.start)*pxPerMin)+"px";
+
+  div.onmouseenter=()=>{
+   tooltip.style.opacity=1;
+   tooltip.innerHTML=`<b>${e.subject}</b><br>${e.room}<br>${e.start}-${e.end}`;
+   const r=div.getBoundingClientRect();
+   tooltip.style.left=r.right+10+"px";
+   tooltip.style.top=r.top+"px";
+  };
+  div.onmouseleave=()=>tooltip.style.opacity=0;
+
+  div.onclick=()=>alert(`${e.subject}\n${e.room}\n${e.start}-${e.end}`);
+
+  div.ondragstart=ev=>ev.dataTransfer.setData("i",i);
 
   div.innerHTML=`<div class="close">✕</div>${e.subject}`;
-  div.querySelector(".close").onclick=()=>{
-    history.push(JSON.stringify(state));
-    state.splice(i,1);
-    save();
+  div.querySelector(".close").onclick=(ev)=>{
+   ev.stopPropagation();
+   history.push(JSON.stringify(state));
+   state.splice(i,1);
+   save();
   };
 
   cell.appendChild(div);
-
  });
 }
 
-/* SAVE */
-const save = () => {
+function enableDropZones(){
+ document.querySelectorAll("td[data-day]").forEach(td=>{
+  td.ondragover=e=>e.preventDefault();
+  td.ondrop=e=>{
+   const i=e.dataTransfer.getData("i");
+   const day=td.dataset.day;
+   const slot=slots.find(s=>s.label===td.dataset.slot);
+   const dur=state[i].endMin-state[i].startMin;
 
- if(!state.length){
-   alert("⚠️ Prazan raspored — save blokiran");
-   return;
- }
+   history.push(JSON.stringify(state));
 
- setDoc(scheduleRef,{events:state});
+   state[i].day=day;
+   state[i].startMin=slot.start;
+   state[i].endMin=slot.start+dur;
+   state[i].start=`${Math.floor(state[i].startMin/60)}:${(state[i].startMin%60).toString().padStart(2,"0")}`;
+   state[i].end=`${Math.floor(state[i].endMin/60)}:${(state[i].endMin%60).toString().padStart(2,"0")}`;
+
+   save();
+  };
+ });
 }
 
-/* NEXT CLASS */
-function updateNextClass(){
- const nowMin=new Date().getHours()*60+new Date().getMinutes();
- const todayIndex = new Date().getDay()-1;
- const today = todayIndex >= 0 ? days[todayIndex] : null;
- const next=state.filter(e=>e.day===today&&e.startMin>nowMin).sort((a,b)=>a.startMin-b.startMin)[0];
- document.getElementById("nextClass").innerText=next?"➡️ Sljedeće: "+next.subject+" u "+next.start:"";
-}
-
-/* CRUD */
 window.addEvent=()=>{
+ history.push(JSON.stringify(state));
  state.push({
   subject:mSubject.value,type:mType.value,day:mDay.value,start:mStart.value,end:mEnd.value,room:mRoom.value,
   startMin:parse(mStart.value),endMin:parse(mEnd.value)
@@ -376,38 +293,20 @@ window.addEvent=()=>{
  save();closeModal();
 };
 
-window.bulkImport = () => {
-
- const importData = [
-
- {subject:"Matematička analiza",type:"predavanje",day:"Ponedjeljak",start:"18:35",end:"20:45",room:"113"},
- {subject:"Matematička analiza",type:"av",day:"Srijeda",start:"16:00",end:"16:45",room:"101"},
- {subject:"Fizika u računarstvu",type:"lab",day:"Utorak",start:"9:00",end:"10:30",room:"004 I"},
- {subject:"Fizika u računarstvu",type:"predavanje",day:"Utorak",start:"9:00",end:"11:30",room:"107"},
- {subject:"PMA",type:"predavanje",day:"Petak",start:"10:45",end:"13:15",room:"104"},
- {subject:"PMA",type:"lab",day:"Četvrtak",start:"17:45",end:"18:30",room:"109"},
- {subject:"Tehnički engleski",type:"av",day:"Srijeda",start:"10:45",end:"12:20",room:"106"},
- {subject:"Tehnički engleski",type:"av",day:"Četvrtak",start:"9:50",end:"11:30",room:"106"},
- {subject:"Računalne mreže",type:"predavanje",day:"Utorak",start:"13:20",end:"14:05",room:"107"},
- {subject:"Linux",type:"lab",day:"Srijeda",start:"17:45",end:"18:30",room:"210"},
- {subject:"Računalne mreže",type:"lab",day:"Četvrtak",start:"13:00",end:"14:30",room:"202"}
-
+window.bulkImport=()=>{
+ const data=[
+ {subject:"Linux",type:"lab",day:"Srijeda",start:"17:45",end:"19:20",room:"210"},
+ {subject:"PMA",type:"lab",day:"Četvrtak",start:"17:45",end:"19:20",room:"109"},
+ {subject:"Računalne mreže",type:"lab",day:"Četvrtak",start:"13:20",end:"15:00",room:"202"},
+ {subject:"Matematička analiza",type:"av",day:"Srijeda",start:"16:00",end:"17:35",room:"101"}
  ].map(e=>({...e,startMin:parse(e.start),endMin:parse(e.end)}));
 
- // ⭐ MERGE
- importData.forEach(newEvent=>{
-   const exists = state.some(e =>
-     e.subject===newEvent.subject &&
-     e.day===newEvent.day &&
-     e.startMin===newEvent.startMin
-   );
-
-   if(!exists) state.push(newEvent);
+ data.forEach(n=>{
+  if(!state.some(e=>e.subject===n.subject&&e.day===n.day&&e.startMin===n.startMin)) state.push(n);
  });
 
  save();
 };
-
 
 window.openModal=()=>modal.style.display="flex";
 window.closeModal=()=>modal.style.display="none";
@@ -415,34 +314,8 @@ window.undo=()=>{if(history.length){state=JSON.parse(history.pop());save();}};
 
 days.forEach(d=>mDay.add(new Option(d,d)));
 
-function enableDropZones(){
- document.querySelectorAll("td[data-day]").forEach(td=>{
-  td.ondragover=e=>e.preventDefault();
-  td.ondrop=e=>{
-    const i=e.dataTransfer.getData("i");
-    const day=td.dataset.day;
-    const slot=slots.find(s=>s.label===td.dataset.slot);
-    const dur=state[i].endMin-state[i].startMin;
-
-    history.push(JSON.stringify(state));
-
-    state[i].day=day;
-    state[i].startMin=slot.start;
-    state[i].endMin=slot.start+dur;
-    state[i].start=minutesToTime(state[i].startMin);
-    state[i].end=minutesToTime(state[i].endMin);
-
-    save();
-  };
- });
-}
-const minutesToTime=m=>{
- const h=Math.floor(m/60);
- const mm=m%60;
- return `${h}:${mm.toString().padStart(2,"0")}`;
-};
-
 build();
+
 </script>
 </body>
 </html>
